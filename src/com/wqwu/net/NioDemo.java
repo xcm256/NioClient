@@ -1,12 +1,9 @@
 package com.wqwu.net;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +27,15 @@ public class NioDemo {
 				log.info("{} was connected", client);
 				String getRequest = "GET / HTTP/1.0\r\nHost: www.yahoo.com\r\nUser-Agent: NioClient 1.0\r\n\r\n";
 				byte[] data = getRequest.getBytes(Charset.forName("UTF-8"));
-				client.write(data);
+				client.write(data).addListener(new NioWriteFutureListener() {
+					@Override
+					public void operationComplete(NioWriteFuture future) throws Exception {
+						if (future.isSuccess())
+							log.info("data was sent successful");
+						else 
+							log.info("sending data failed");
+					}
+				});
 			}
 
 			@Override

@@ -251,21 +251,35 @@ public class NioManager {
         	if (socketChannel == null) {
         		return;
         	}
-        	final ByteBuffer buffer = client.getOneWriteBuffer();
-        	if (buffer == null) {
+        	final NioWriteUnit unit = client.getOneWriteUnit();
+        	if (unit == null) {
         		key.interestOps(SelectionKey.OP_READ);
         		return;
         	}
         	try {
-				socketChannel.write(buffer);
-				if (buffer.remaining() > 0) {
-					client.putBackOneWriteBufferOnTop(buffer);
+				socketChannel.write(unit.getBuffer());
+				if (unit.getBuffer().remaining() > 0) {
+					client.putBackWriteUnitOnTop(unit);
+				} else {
+					post(new NioTask(client) {
+						@Override
+						public void run() throws Exception {
+							NioWriteFuture future = unit.getFuture();
+							future.setDone(true);
+							future.setSuccess(true);
+							unit.getFuture().notifyListeners();
+						}
+					});
 				}
 			} catch (final IOException e) {
 				log.error("handleWrite", e);
 				post(new NioTask(client) {
 					@Override
 					public void run() throws Exception {
+						NioWriteFuture future = unit.getFuture();
+						future.setDone(true);
+						future.setSuccess(false);
+						unit.getFuture().notifyListeners();
 						client.exceptionCaught(e);
 					}
 				});

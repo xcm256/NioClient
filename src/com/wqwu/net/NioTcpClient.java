@@ -15,6 +15,7 @@ public class NioTcpClient {
 	private final static Logger log = LoggerFactory.getLogger(NioTcpClient.class);
 	private final static AtomicLong gClientId = new AtomicLong(0);
 	
+	private final List<NioWriteUnit> pendingWriteUnits = new LinkedList<NioWriteUnit>();
 	private final long clientId;
     private String host = "";
     private int port;
@@ -98,31 +99,35 @@ public class NioTcpClient {
 	}
 	
 	public void disconnect() {
+		synchronized(pendingWriteUnits) {
+			pendingWriteUnits.clear();
+		}
 		NioManager.instance().disconnect(this);
 	}
 	
-	private final List<ByteBuffer> pendingWriteData = new LinkedList<ByteBuffer>();
-
-	public void write(byte[] data) {
+	public NioWriteFuture write(byte[] data) {
+		NioWriteFuture future = new NioWriteFuture(this);
 		ByteBuffer buffer = ByteBuffer.wrap(data);
-		synchronized(pendingWriteData) {
-			pendingWriteData.add(buffer);
+		NioWriteUnit unit = new NioWriteUnit(future, buffer);
+		synchronized(pendingWriteUnits) {
+			pendingWriteUnits.add(unit);
 		}
 		NioManager.instance().write(this);
+		return future;
 	}
 	
-	public ByteBuffer getOneWriteBuffer() {
-		synchronized(pendingWriteData) {
-			if (pendingWriteData.size() <= 0)
+	public NioWriteUnit getOneWriteUnit() {
+		synchronized(pendingWriteUnits) {
+			if (pendingWriteUnits.size() <= 0)
 				return null;
 			else
-				return pendingWriteData.remove(0);
+				return pendingWriteUnits.remove(0);
 		}
 	}
 	
-	public void putBackOneWriteBufferOnTop(ByteBuffer buffer) {
-		synchronized(pendingWriteData) {
-			pendingWriteData.add(0, buffer);
+	public void putBackWriteUnitOnTop(NioWriteUnit unit) {
+		synchronized(pendingWriteUnits) {
+			pendingWriteUnits.add(0, unit);
 		}
 	}
 	
