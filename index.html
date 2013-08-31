@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8' />
+    <meta http-equiv="X-UA-Compatible" content="chrome=1" />
+    <meta name="description" content="Nioclient : Simple Java NIO wrapper for client applications" />
+
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+
+    <title>Nioclient</title>
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/wqwu/NioClient">View on GitHub</a>
+
+          <h1 id="project_title">Nioclient</h1>
+          <h2 id="project_tagline">Simple Java NIO wrapper for client applications</h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/wqwu/NioClient/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/wqwu/NioClient/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <h1>
+<a name="nioclient" class="anchor" href="#nioclient"><span class="octicon octicon-link"></span></a>NioClient</h1>
+
+<p>Netty is a brilliant framework for server applications, but it's kind of heavy for client side, NioClient wants to provides serveral light classes to use nonblocking socket.</p>
+
+<p>Some of idea is coming from Netty, but I try to make it simple.</p>
+
+<p>There are also some references (thanks to authors for sharing):</p>
+
+<ol>
+<li><a href="http://rox-xmlrpc.sourceforge.net/niotut/">http://rox-xmlrpc.sourceforge.net/niotut/</a></li>
+<li><a href="http://today.java.net/article/2007/02/08/architecture-highly-scalable-nio-based-server">http://today.java.net/article/2007/02/08/architecture-highly-scalable-nio-based-server</a></li>
+</ol><h1>
+<a name="thread-model" class="anchor" href="#thread-model"><span class="octicon octicon-link"></span></a>Thread model</h1>
+
+<ol>
+<li>there are always two threads running after NioManager.init(), one is selector thread, another is I/O thread.</li>
+<li>all operations of selector key set will be processed in selector thread.</li>
+<li>all handler's callback will be called in I/O thread.</li>
+</ol><h1>
+<a name="usage" class="anchor" href="#usage"><span class="octicon octicon-link"></span></a>Usage</h1>
+
+<p>please check NioDemo class as an example, here is copy:</p>
+
+<pre><code>    NioManager.instance().init();
+
+    final String host = "www.yahoo.com";
+    final int port = 80;
+    final ByteArrayOutputStream out = new ByteArrayOutputStream();
+    out.reset();
+    NioHandler handler = new NioHandler() {
+        @Override
+        public void onConnected(NioTcpClient client) throws Exception {
+            log.info("{} was connected", client);
+            String getRequest = "GET / HTTP/1.0\r\nHost: www.yahoo.com\r\nUser-Agent: NioClient 1.0\r\n\r\n";
+            byte[] data = getRequest.getBytes(Charset.forName("UTF-8"));
+            client.write(data);
+        }
+
+        @Override
+        public void onDisconnected(NioTcpClient client) throws Exception {
+            log.info("{} was disconnected", client);
+            String str = new String(out.toByteArray(), Charset.forName("UTF-8"));
+            out.close();
+            log.info(str);
+            NioManager.instance().shutdown();
+        }
+
+        @Override
+        public void onDataReceived(NioTcpClient client, ByteBuffer buffer)
+                throws Exception {
+            log.info("received {} bytes by {}", buffer.remaining(), client);
+            out.write(buffer.array());
+        }
+
+        @Override
+        public void exceptionCaught(NioTcpClient client, Exception e)
+                throws Exception {
+            log.error("", e);
+            client.disconnect();
+        }
+
+    };
+    NioTcpClient socket = new NioTcpClient(handler);
+    socket.connect(host, port);
+</code></pre>
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">Nioclient maintained by <a href="https://github.com/wqwu">wqwu</a></p>
+        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+    
+
+  </body>
+</html>
