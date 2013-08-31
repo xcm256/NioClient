@@ -1,7 +1,7 @@
 NioClient
 =========
 
-Netty is brilliant framework for server applications, but it's kind of heavy for client side, NioClient wants to provides serveral light classes to use nonblocking socket.
+Netty is a brilliant framework for server applications, but it's kind of heavy for client side, NioClient wants to provides serveral light classes to use nonblocking socket.
 
 Some of idea is coming from Netty, but I try to make it simple.
 
