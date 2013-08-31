@@ -18,7 +18,7 @@ Thread model
 
 Usage
 =========
-please check NioDemo class for example, here is copy:
+please check NioDemo class as an example, here is copy:
 
 		NioManager.instance().init();
 		
