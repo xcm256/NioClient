@@ -4,11 +4,11 @@
   <head>
     <meta charset='utf-8' />
     <meta http-equiv="X-UA-Compatible" content="chrome=1" />
-    <meta name="description" content="Nioclient : Simple Java NIO wrapper for client applications" />
+    <meta name="description" content="NioClient : Simple Java NIO wrapper for client applications" />
 
     <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
 
-    <title>Nioclient</title>
+    <title>NioClient</title>
   </head>
 
   <body>
@@ -18,7 +18,7 @@
         <header class="inner">
           <a id="forkme_banner" href="https://github.com/wqwu/NioClient">View on GitHub</a>
 
-          <h1 id="project_title">Nioclient</h1>
+          <h1 id="project_title">NioClient</h1>
           <h2 id="project_tagline">Simple Java NIO wrapper for client applications</h2>
 
             <section id="downloads">
@@ -57,15 +57,14 @@
 
 <pre><code>    NioManager.instance().init();
 
-    final String host = "www.yahoo.com";
+    final String host = "www.google.com";
     final int port = 80;
-    final ByteArrayOutputStream out = new ByteArrayOutputStream();
-    out.reset();
+    final NioBuffer nioBuffer = new NioBuffer();
     NioHandler handler = new NioHandler() {
         @Override
         public void onConnected(NioTcpClient client) throws Exception {
             log.info("{} was connected", client);
-            String getRequest = "GET / HTTP/1.0\r\nHost: www.yahoo.com\r\nUser-Agent: NioClient 1.0\r\n\r\n";
+            String getRequest = "GET / HTTP/1.0\r\nHost: " + host + "\r\nUser-Agent: NioClient 1.0\r\n\r\n";
             byte[] data = getRequest.getBytes(Charset.forName("UTF-8"));
             client.write(data);
         }
@@ -73,8 +72,9 @@
         @Override
         public void onDisconnected(NioTcpClient client) throws Exception {
             log.info("{} was disconnected", client);
-            String str = new String(out.toByteArray(), Charset.forName("UTF-8"));
-            out.close();
+            byte[] bytes = nioBuffer.readBytes(nioBuffer.readableByteSize());
+            String str = new String(bytes, Charset.forName("UTF-8"));
+            nioBuffer.clear();
             log.info(str);
             NioManager.instance().shutdown();
         }
@@ -83,11 +83,11 @@
         public void onDataReceived(NioTcpClient client, ByteBuffer buffer)
                 throws Exception {
             log.info("received {} bytes by {}", buffer.remaining(), client);
-            out.write(buffer.array());
+            nioBuffer.addBuffer(buffer);
         }
 
         @Override
-        public void exceptionCaught(NioTcpClient client, Exception e)
+        public void onExceptionHappened(NioTcpClient client, Exception e)
                 throws Exception {
             log.error("", e);
             client.disconnect();
@@ -103,7 +103,7 @@
     <!-- FOOTER  -->
     <div id="footer_wrap" class="outer">
       <footer class="inner">
-        <p class="copyright">Nioclient maintained by <a href="https://github.com/wqwu">wqwu</a></p>
+        <p class="copyright">NioClient maintained by <a href="https://github.com/wqwu">wqwu</a></p>
         <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
       </footer>
     </div>
