@@ -5,6 +5,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
@@ -15,17 +16,26 @@ public class NioTcpClient {
 	private final static Logger log = LoggerFactory.getLogger(NioTcpClient.class);
 	private final static AtomicLong gClientId = new AtomicLong(0);
 	
+	private final ConcurrentHashMap<String, Object> attachments = new ConcurrentHashMap<String, Object>();
 	private final List<NioWriteUnit> pendingWriteUnits = new LinkedList<NioWriteUnit>();
 	private final long clientId;
+    private final NioHandler handler;
     private String host = "";
     private int port;
     private SocketChannel socketChannel;
-    private final NioHandler handler;
 
 	public NioTcpClient(NioHandler handler) {
 		clientId = gClientId.incrementAndGet();
     	this.handler = handler;
     }
+	
+	public Object putAttachment(String key, Object value) {
+		return attachments.put(key, value);
+	}
+	
+	public Object getAttachment(String key) {
+		return attachments.get(key);
+	}
     
 	private boolean hostIsSame(String other) {
 		if (other == null)
@@ -58,9 +68,9 @@ public class NioTcpClient {
 		return this.socketChannel != null && this.socketChannel.isConnected();
 	}
 	
-	public void exceptionCaught(Exception e) throws Exception {
+	public void handleException(Exception e) throws Exception {
 		if (handler != null) {
-			handler.exceptionCaught(this, e);
+			handler.onExceptionHappened(this, e);
 		}
 	}
 	
@@ -79,6 +89,23 @@ public class NioTcpClient {
 	public void handleDataReceived(ByteBuffer buffer) throws Exception {
 		if (handler != null) {
 			handler.onDataReceived(this, buffer);
+		}
+	}
+	
+	public void handleWriteSuccess(NioWriteUnit unit) throws Exception {
+		NioWriteFuture future = unit.getFuture();
+		future.setDone(true);
+		future.setSuccess(true);
+		unit.getFuture().notifyListeners();
+	}
+	
+	public void handleWriteFailure(NioWriteUnit unit, Exception e) throws Exception {
+		NioWriteFuture future = unit.getFuture();
+		future.setDone(true);
+		future.setSuccess(false);
+		unit.getFuture().notifyListeners();
+		if (handler != null) {
+			handler.onExceptionHappened(this, e);
 		}
 	}
 	
@@ -105,7 +132,10 @@ public class NioTcpClient {
 		NioManager.instance().disconnect(this);
 	}
 	
-	public NioWriteFuture write(byte[] data) {
+	public NioWriteFuture write(byte[] data) throws IOException {
+		if (!isConnected()) {
+			throw new IOException("connection is not open");
+		}
 		NioWriteFuture future = new NioWriteFuture(this);
 		ByteBuffer buffer = ByteBuffer.wrap(data);
 		NioWriteUnit unit = new NioWriteUnit(future, buffer);

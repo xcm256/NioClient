@@ -189,7 +189,7 @@ public class NioManager {
 				post(new NioTask(client) {
 					@Override
 					public void run() throws Exception {
-						client.exceptionCaught(e);
+						client.handleException(e);
 					}
 				});
 			}
@@ -264,10 +264,7 @@ public class NioManager {
 					post(new NioTask(client) {
 						@Override
 						public void run() throws Exception {
-							NioWriteFuture future = unit.getFuture();
-							future.setDone(true);
-							future.setSuccess(true);
-							unit.getFuture().notifyListeners();
+							client.handleWriteSuccess(unit);
 						}
 					});
 				}
@@ -276,11 +273,7 @@ public class NioManager {
 				post(new NioTask(client) {
 					@Override
 					public void run() throws Exception {
-						NioWriteFuture future = unit.getFuture();
-						future.setDone(true);
-						future.setSuccess(false);
-						unit.getFuture().notifyListeners();
-						client.exceptionCaught(e);
+						client.handleWriteFailure(unit, e);
 					}
 				});
 			}
@@ -409,7 +402,7 @@ public class NioManager {
 				} catch (Exception e) {
 					log.error("NioTask.run()", e);
 					try {
-						task.getClient().exceptionCaught(e);
+						task.getClient().handleException(e);
 					} catch (Exception eat) {
 						log.error("NioTcpClient.exceptionCaught()", eat);
 						throw new RuntimeException(eat);
