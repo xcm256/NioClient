@@ -55,8 +55,7 @@
 
 <p>please check NioDemo class as an example, here is copy:</p>
 
-<pre><code>    NioManager.instance().init();
-
+<pre><code>    final NioManager nioManager = new NioManager();
     final String host = "www.google.com";
     final int port = 80;
     final NioBuffer nioBuffer = new NioBuffer();
@@ -76,7 +75,7 @@
             String str = new String(bytes, Charset.forName("UTF-8"));
             nioBuffer.clear();
             log.info(str);
-            NioManager.instance().shutdown();
+            nioManager.shutdown();
         }
 
         @Override
@@ -94,7 +93,7 @@
         }
 
     };
-    NioTcpClient socket = new NioTcpClient(handler);
+    NioTcpClient socket = new NioTcpClient(nioManager, handler);
     socket.connect(host, port);
 </code></pre>
       </section>
