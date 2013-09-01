@@ -7,6 +7,13 @@ import java.util.List;
 
 public class NioBuffer {
 	
+	public static NioBuffer combine(byte[] data1, byte[] data2) {
+		NioBuffer nioBuffer = new NioBuffer();
+		nioBuffer.addBuffer(data1);
+		nioBuffer.addBuffer(data2);
+		return nioBuffer;
+	}
+	
 	private List<ByteBuffer> bufferList = new ArrayList<ByteBuffer>();
 	
 	public int readableByteSize() {
@@ -39,6 +46,11 @@ public class NioBuffer {
 	}
 	
 	public void addBuffer(ByteBuffer buffer) {
+		bufferList.add(buffer);
+	}
+	
+	public void addBuffer(byte[] data) {
+		ByteBuffer buffer = ByteBuffer.wrap(data);
 		bufferList.add(buffer);
 	}
 	

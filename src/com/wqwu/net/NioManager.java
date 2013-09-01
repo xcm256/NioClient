@@ -31,18 +31,19 @@ import org.slf4j.LoggerFactory;
 public class NioManager {
 	
 	private final static Logger log = LoggerFactory.getLogger(NioManager.class);
-	private static NioManager instance = null;
 	
-	public static NioManager instance() {
-		if (instance != null)
-			return instance;
-		synchronized(log) {
-			if (instance != null)
-				return instance;
-			instance = new NioManager();
-		}
-		return instance;
-	}
+//	private static NioManager instance = null;
+//	
+//	public static NioManager instance() {
+//		if (instance != null)
+//			return instance;
+//		synchronized(log) {
+//			if (instance != null)
+//				return instance;
+//			instance = new NioManager();
+//		}
+//		return instance;
+//	}
 	
 	private static enum SelectorChangeType {
 		SelectorChangeTypeRegister,
@@ -119,7 +120,6 @@ public class NioManager {
             	handleSelectorChanges();
             	if (isShutdown.get())
             		break;
-            	log.info("start to select");
                 try {
 					selector.select();
 				} catch (IOException e) {
@@ -291,8 +291,8 @@ public class NioManager {
 	private final AtomicBoolean isShutdown = new AtomicBoolean(false);
 	private final List<SelectorChange> selectorChanges = new LinkedList<SelectorChange>();
 	private final SelectorTask selectorTask = new SelectorTask();
-    
-	public void init() throws IOException {
+	
+	public NioManager() throws IOException {
 		if (!isShutdown.get()) {
 			selector = SelectorProvider.provider().openSelector();
 			selectorThread.execute(selectorTask);

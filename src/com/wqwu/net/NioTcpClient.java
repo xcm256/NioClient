@@ -19,13 +19,15 @@ public class NioTcpClient {
 	private final ConcurrentHashMap<String, Object> attachments = new ConcurrentHashMap<String, Object>();
 	private final List<NioWriteUnit> pendingWriteUnits = new LinkedList<NioWriteUnit>();
 	private final long clientId;
+	private final NioManager nioManager;
     private final NioHandler handler;
     private String host = "";
     private int port;
     private SocketChannel socketChannel;
 
-	public NioTcpClient(NioHandler handler) {
+	public NioTcpClient(final NioManager nioManager, NioHandler handler) {
 		clientId = gClientId.incrementAndGet();
+		this.nioManager = nioManager;
     	this.handler = handler;
     }
 	
@@ -122,14 +124,14 @@ public class NioTcpClient {
 		}
 		this.host = host;
 		this.port = port;
-		NioManager.instance().connect(this);
+		nioManager.connect(this);
 	}
 	
 	public void disconnect() {
 		synchronized(pendingWriteUnits) {
 			pendingWriteUnits.clear();
 		}
-		NioManager.instance().disconnect(this);
+		nioManager.disconnect(this);
 	}
 	
 	public NioWriteFuture write(byte[] data) throws IOException {
@@ -142,8 +144,16 @@ public class NioTcpClient {
 		synchronized(pendingWriteUnits) {
 			pendingWriteUnits.add(unit);
 		}
-		NioManager.instance().write(this);
+		nioManager.write(this);
 		return future;
+	}
+	
+	public NioWriteFuture write(NioBuffer buffer) throws IOException {
+		if (!isConnected()) {
+			throw new IOException("connection is not open");
+		}
+		byte[] data = buffer.readBytes(buffer.readableByteSize());
+		return write(data);
 	}
 	
 	public NioWriteUnit getOneWriteUnit() {

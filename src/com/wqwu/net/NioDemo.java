@@ -13,8 +13,7 @@ public class NioDemo {
 
 	public static void main(String[] args) throws IOException {
 		log.info("app started");
-		NioManager.instance().init();
-
+		final NioManager nioManager = new NioManager();
 	    final String host = "www.google.com";
 	    final int port = 80;
 	    final NioBuffer nioBuffer = new NioBuffer();
@@ -31,10 +30,10 @@ public class NioDemo {
 	        public void onDisconnected(NioTcpClient client) throws Exception {
 	            log.info("{} was disconnected", client);
 	            byte[] bytes = nioBuffer.readBytes(nioBuffer.readableByteSize());
-	            String str = new String(bytes, Charset.forName("UTF-8"));
+	            String str = new String(bytes, Charset.forName("GBK"));
 	            nioBuffer.clear();
 	            log.info(str);
-	            NioManager.instance().shutdown();
+	            nioManager.shutdown();
 	        }
 
 	        @Override
@@ -52,7 +51,7 @@ public class NioDemo {
 			}
 
 	    };
-	    NioTcpClient socket = new NioTcpClient(handler);
+	    NioTcpClient socket = new NioTcpClient(nioManager, handler);
 	    socket.connect(host, port);
 	}
 
