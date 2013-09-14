@@ -31,11 +31,11 @@ public class NioTcpClient {
     	this.handler = handler;
     }
 	
-	public Object putAttachment(String key, Object value) {
+	final public Object putAttachment(String key, Object value) {
 		return attachments.put(key, value);
 	}
 	
-	public Object getAttachment(String key) {
+	final public Object getAttachment(String key) {
 		return attachments.get(key);
 	}
     
@@ -50,58 +50,58 @@ public class NioTcpClient {
 		return hostIsSame(other) && this.port == port;
 	}
     
-	public String getHost() {
+	final public String getHost() {
 		return host;
 	}
 
-	public int getPort() {
+	final public int getPort() {
 		return port;
 	}
 
-	public SocketChannel getSocketChannel() {
+	final public SocketChannel getSocketChannel() {
 		return socketChannel;
 	}
 	
-	public void setSocketChannel(SocketChannel socketChannel) {
+	final public void setSocketChannel(SocketChannel socketChannel) {
 		this.socketChannel = socketChannel;
 	}
 	
-	public boolean isConnected() {
+	final public boolean isConnected() {
 		return this.socketChannel != null && this.socketChannel.isConnected();
 	}
 	
-	public void handleException(Exception e) throws Exception {
+	final public void handleException(Exception e) throws Exception {
 		if (handler != null) {
 			handler.onExceptionHappened(this, e);
 		}
 	}
 	
-	public void handleConnected() throws Exception {
+	final public void handleConnected() throws Exception {
 		if (handler != null) {
 			handler.onConnected(this);
 		}
 	}
 	
-	public void handleDisconnected() throws Exception {
+	final public void handleDisconnected() throws Exception {
 		if (handler != null) {
 			handler.onDisconnected(this);
 		}
 	}
 	
-	public void handleDataReceived(ByteBuffer buffer) throws Exception {
+	final public void handleDataReceived(ByteBuffer buffer) throws Exception {
 		if (handler != null) {
 			handler.onDataReceived(this, buffer);
 		}
 	}
 	
-	public void handleWriteSuccess(NioWriteUnit unit) throws Exception {
+	final public void handleWriteSuccess(NioWriteUnit unit) throws Exception {
 		NioWriteFuture future = unit.getFuture();
 		future.setDone(true);
 		future.setSuccess(true);
 		unit.getFuture().notifyListeners();
 	}
 	
-	public void handleWriteFailure(NioWriteUnit unit, Exception e) throws Exception {
+	final public void handleWriteFailure(NioWriteUnit unit, Exception e) throws Exception {
 		NioWriteFuture future = unit.getFuture();
 		future.setDone(true);
 		future.setSuccess(false);
@@ -111,7 +111,7 @@ public class NioTcpClient {
 		}
 	}
 	
-	public void connect(String host, int port)  {
+	final public void connect(String host, int port)  {
 		if (isSame(host, port)) {
 			if (socketChannel != null && socketChannel.isConnected()) {
 				log.warn("connection of {}:{} is already connected", host, port);
@@ -127,14 +127,14 @@ public class NioTcpClient {
 		nioManager.connect(this);
 	}
 	
-	public void disconnect() {
+	final public void disconnect() {
 		synchronized(pendingWriteUnits) {
 			pendingWriteUnits.clear();
 		}
 		nioManager.disconnect(this);
 	}
 	
-	public NioWriteFuture write(byte[] data) throws IOException {
+	final public NioWriteFuture write(byte[] data) throws IOException {
 		if (!isConnected()) {
 			throw new IOException("connection is not open");
 		}
@@ -148,7 +148,7 @@ public class NioTcpClient {
 		return future;
 	}
 	
-	public NioWriteFuture write(NioBuffer buffer) throws IOException {
+	final public NioWriteFuture write(NioBuffer buffer) throws IOException {
 		if (!isConnected()) {
 			throw new IOException("connection is not open");
 		}
@@ -156,7 +156,7 @@ public class NioTcpClient {
 		return write(data);
 	}
 	
-	public NioWriteUnit getOneWriteUnit() {
+	final public NioWriteUnit getOneWriteUnit() {
 		synchronized(pendingWriteUnits) {
 			if (pendingWriteUnits.size() <= 0)
 				return null;
@@ -165,7 +165,7 @@ public class NioTcpClient {
 		}
 	}
 	
-	public void putBackWriteUnitOnTop(NioWriteUnit unit) {
+	final public void putBackWriteUnitOnTop(NioWriteUnit unit) {
 		synchronized(pendingWriteUnits) {
 			pendingWriteUnits.add(0, unit);
 		}

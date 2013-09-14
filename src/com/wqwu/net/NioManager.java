@@ -5,7 +5,6 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
@@ -32,57 +31,35 @@ public class NioManager {
 	
 	private final static Logger log = LoggerFactory.getLogger(NioManager.class);
 	
-//	private static NioManager instance = null;
-//	
-//	public static NioManager instance() {
-//		if (instance != null)
-//			return instance;
-//		synchronized(log) {
-//			if (instance != null)
-//				return instance;
-//			instance = new NioManager();
-//		}
-//		return instance;
-//	}
-	
 	private static enum SelectorChangeType {
 		SelectorChangeTypeRegister,
-		SelectorChangeTypeChange,
+		SelectorChangeTypeWrite,
 		SelectorChangeTypeCancel
 	}
 	
 	private static class SelectorChange {
 		private final NioTcpClient client;
 		private final SelectorChangeType type;
-		private final int ops;
-		public NioTcpClient getClient() {
+		final public NioTcpClient getClient() {
 			return client;
 		}
-		public SelectorChangeType getType() {
+		final public SelectorChangeType getType() {
 			return type;
 		}
-		public int getOps() {
-			return ops;
-		}
-		public SelectorChange(NioTcpClient client, SelectorChangeType type, int ops) {
+		public SelectorChange(NioTcpClient client, SelectorChangeType type) {
 			this.client = client;
 			this.type = type;
-			this.ops = ops;
 		}
 	}
 	
 	private static abstract class NioTask {
-		
 		private final NioTcpClient client;
-		
-		public NioTcpClient getClient() {
+		final public NioTcpClient getClient() {
 			return client;
 		}
-
 		public NioTask(NioTcpClient client) {
 			this.client = client;
 		}
-		
 		public abstract void run() throws Exception;
 	}
 	
@@ -99,7 +76,7 @@ public class NioManager {
 			this.threadPrefix = threadPrefix;
 		}
 		
-		public ThreadFactory build() {
+		final public ThreadFactory build() {
 			ThreadFactory factory = new ThreadFactory() {
 				@Override
 				public Thread newThread(Runnable r) {
@@ -112,8 +89,8 @@ public class NioManager {
 		}
 	}
 	
-	private class SelectorTask implements Runnable {
-		
+	private class SelectorTask implements Runnable 
+	{
 		@Override
         public void run() {
             while (true) {
@@ -146,45 +123,53 @@ public class NioManager {
 		private void handleSelectorChanges() {
 			synchronized(selectorChanges) {
 				for (SelectorChange change : selectorChanges) {
-					switch (change.getType()) {
-					case SelectorChangeTypeRegister:
-					{
-						handleSelectorRegister(change);
-					}
-						break;
-					case SelectorChangeTypeChange:
-					{
+					do {
 						final NioTcpClient client = change.getClient();
-						SelectionKey key = client.getSocketChannel().keyFor(selector);
-						if (key != null) {
-							key.interestOps(change.getOps());
+						if (client == null) {
+							break;
 						}
-					}
-						break;
-					case SelectorChangeTypeCancel:
-					{
-						final NioTcpClient client = change.getClient();
+						log.debug("SelectorChange {} for {}", change.getType(), client);
+						if (change.getType() == SelectorChangeType.SelectorChangeTypeRegister) {
+							handleSelectorChangeRegister(client);
+							break;
+						}
+						if (client.getSocketChannel() == null) {
+							break;
+						}
 						SelectionKey key = client.getSocketChannel().keyFor(selector);
-						if (key != null) {
+						if (key == null) {
+							break;
+						}
+						if (change.getType() == SelectorChangeType.SelectorChangeTypeWrite) {
+							key.interestOps(SelectionKey.OP_WRITE);
+							break;
+						}
+						if (change.getType() == SelectorChangeType.SelectorChangeTypeCancel) {
 							key.cancel();
+							doDisconnect(client);
+							break;
 						}
-						doDisconnect(client);
-					}
-						break;
-					}
+					} while (false);
 				}
 				selectorChanges.clear();
 			}
 		}
 
-		private void handleSelectorRegister(SelectorChange change) {
-			final NioTcpClient client = change.getClient();
+		private void handleSelectorChangeRegister(final NioTcpClient client) {
 			try {
-				SelectionKey key = client.getSocketChannel().register(selector, change.getOps());
+				log.info("start to connect {}:{} for {}", client.getHost(), client.getPort(), client);
+				SocketChannel socketChannel = SocketChannel.open();
+				client.setSocketChannel(socketChannel);
+				socketChannel.configureBlocking(false);
+				socketChannel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
+				socketChannel.setOption(StandardSocketOptions.TCP_NODELAY, true);
+				SocketAddress address = new InetSocketAddress(client.getHost(), client.getPort());
+				socketChannel.connect(address);
+				SelectionKey key = client.getSocketChannel().register(selector, SelectionKey.OP_CONNECT);
 				if (key != null) {
 					key.attach(client);
 				}
-			} catch (final ClosedChannelException e) {
+			} catch (final IOException e) {
 				log.error("register socket channel", e);
 				post(new NioTask(client) {
 					@Override
@@ -194,12 +179,12 @@ public class NioManager {
 				});
 			}
 		}
-        
+		
         private void handleConnect(SelectionKey key) {
-            key.interestOps(SelectionKey.OP_READ);
             NioTcpClient client = (NioTcpClient)key.attachment();
             try {
 				client.getSocketChannel().finishConnect();
+				key.interestOps(SelectionKey.OP_READ);
 				post(new NioTask(client) {
 					@Override
 					public void run() throws Exception {
@@ -269,7 +254,7 @@ public class NioManager {
 					});
 				}
 			} catch (final IOException e) {
-				log.error("handleWrite", e);
+				log.error(client + " handleWrite", e);
 				post(new NioTask(client) {
 					@Override
 					public void run() throws Exception {
@@ -331,19 +316,11 @@ public class NioManager {
 	}
 	
 	public void connect(final NioTcpClient client) {
-		log.info("start to connect {}:{} for {}", client.getHost(), client.getPort(), client);
 		post(new NioTask(client) {
 			@Override
 			public void run() throws Exception {
-				SocketChannel socketChannel = SocketChannel.open();
-				client.setSocketChannel(socketChannel);
-				socketChannel.configureBlocking(false);
-				socketChannel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
-				socketChannel.setOption(StandardSocketOptions.TCP_NODELAY, true);
-				SocketAddress address = new InetSocketAddress(client.getHost(), client.getPort());
-				socketChannel.connect(address);
 				synchronized(selectorChanges) {
-					SelectorChange change = new SelectorChange(client, SelectorChangeType.SelectorChangeTypeRegister, SelectionKey.OP_CONNECT);
+					SelectorChange change = new SelectorChange(client, SelectorChangeType.SelectorChangeTypeRegister);
 					selectorChanges.add(change);
 					selector.wakeup();
 				}
@@ -356,7 +333,7 @@ public class NioManager {
 			@Override
 			public void run() throws Exception {
 				synchronized(selectorChanges) {
-					SelectorChange change = new SelectorChange(this.getClient(), SelectorChangeType.SelectorChangeTypeCancel, 0);
+					SelectorChange change = new SelectorChange(this.getClient(), SelectorChangeType.SelectorChangeTypeCancel);
 					selectorChanges.add(change);
 					selector.wakeup();
 				}
@@ -369,7 +346,7 @@ public class NioManager {
 			@Override
 			public void run() throws Exception {
 				synchronized(selectorChanges) {
-					SelectorChange change = new SelectorChange(this.getClient(), SelectorChangeType.SelectorChangeTypeChange, SelectionKey.OP_WRITE);
+					SelectorChange change = new SelectorChange(this.getClient(), SelectorChangeType.SelectorChangeTypeWrite);
 					selectorChanges.add(change);
 					selector.wakeup();
 				}
@@ -378,16 +355,18 @@ public class NioManager {
 	}
 	
 	private void doDisconnect(NioTcpClient client) {
+		SocketChannel socketChannel = client.getSocketChannel();
+		if (socketChannel != null && socketChannel.isConnected()) {
+			try {
+				socketChannel.close();
+			} catch (IOException e) {
+				log.error("close " + client + " socket channel", e);
+			}
+		}
+		client.setSocketChannel(null);
 		post(new NioTask(client) {
 			@Override
 			public void run() throws Exception {
-				SocketChannel socketChannel = this.getClient().getSocketChannel();
-				if (socketChannel == null)
-					return;
-				if (socketChannel.isConnected()) {
-					socketChannel.close();
-				}
-				this.getClient().setSocketChannel(null);
 				this.getClient().handleDisconnected();
 			}
 		});
